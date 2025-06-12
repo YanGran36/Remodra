@@ -1,1 +1,1 @@
-web: git add . && git commit -m "Upload Remodra project" && git push origin main && npm run build && npm run start
+web: git add . && git commit -m "Upload Remodra project" && git push origin main --force && npm run build && npm run start
