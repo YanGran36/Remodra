@@ -1,0 +1,484 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  /* Global responsive container */
+  .app-container {
+    @apply w-full min-h-screen mx-auto px-4 sm:px-6 lg:px-8;
+    max-width: 100%;
+  }
+  
+  /* Responsive page layout */
+  .page-layout {
+    @apply w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8;
+  }
+  
+  /* Responsive card layout */
+  .responsive-card {
+    @apply w-full max-w-none sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl mx-auto;
+  }
+  
+  /* Responsive grid */
+  .responsive-grid {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6;
+  }
+  
+  /* Stats grid for dashboard */
+  .stats-grid {
+    @apply grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6;
+  }
+  
+  /* Form responsive layout */
+  .form-grid {
+    @apply grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6;
+  }
+  
+  /* Table responsive wrapper */
+  .table-responsive {
+    @apply overflow-x-auto;
+  }
+  
+  /* Mobile-friendly header */
+  .mobile-header {
+    @apply flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4;
+  }
+  
+  /* Responsive button group */
+  .button-group {
+    @apply flex flex-col sm:flex-row gap-2 sm:gap-3;
+  }
+  
+  /* Mobile-first button styling */
+  .responsive-button {
+    @apply w-full sm:w-auto px-4 py-2 text-sm sm:text-base;
+  }
+}
+
+@layer base {
+  :root {
+    /* Paleta de colores de lujo - azules profundos, dorado y plata */
+    --background: 220 30% 98%;
+    --foreground: 224 71% 4%;
+    --card: 0 0% 100%;
+    --card-foreground: 224 71% 4%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 71% 4%;
+    
+    /* Azul profundo como color primario */
+    --primary: 225 90% 30%;
+    --primary-foreground: 0 0% 100%;
+    
+    /* Dorado como color secundario */
+    --secondary: 43 74% 56%;
+    --secondary-foreground: 0 0% 100%;
+    
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 14% 46%;
+    
+    /* Acentos plateados */
+    --accent: 228 6% 90%;
+    --accent-foreground: 225 25% 20%;
+    
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 225 90% 30%;
+    --radius: 0.75rem;
+  }
+ 
+  .dark {
+    /* Fondo oscuro moderno */
+    --background: 224 71% 4%;
+    --foreground: 220 30% 98%;
+    
+    /* Tarjetas con azul profundo */
+    --card: 225 50% 8%;
+    --card-foreground: 210 40% 98%;
+    
+    /* Popovers con azul profundo */
+    --popover: 225 50% 8%;
+    --popover-foreground: 210 40% 98%;
+    
+    /* Azul brillante como primario */
+    --primary: 216 100% 60%;
+    --primary-foreground: 0 0% 100%;
+    
+    /* Dorado como secundario */
+    --secondary: 43 80% 56%;
+    --secondary-foreground: 0 0% 0%;
+    
+    /* Fondos atenuados */
+    --muted: 223 47% 14%;
+    --muted-foreground: 215 20% 75%;
+    
+    /* Acentos elegantes */
+    --accent: 216 34% 25%;
+    --accent-foreground: 210 40% 98%;
+    
+    /* Destructivo más sutil */
+    --destructive: 0 75% 50%;
+    --destructive-foreground: 210 40% 98%;
+    
+    /* Otros elementos de la interfaz */
+    --border: 223 47% 14%;
+    --input: 223 47% 14%;
+    --ring: 216 100% 60%;
+  }
+}
+
+@font-face {
+  font-family: 'Signature';
+  src: url('https://fonts.googleapis.com/css2?family=Parisienne&display=swap');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Handwriting';
+  src: url('https://fonts.googleapis.com/css2?family=Homemade+Apple&display=swap');
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* Elementos de diseño lujosos y futuristas */
+@layer utilities {
+  /* Fondos con gradientes modernos */
+  .bg-luxury-gradient {
+    @apply bg-gradient-to-br from-blue-900 via-blue-800 to-blue-950;
+  }
+  
+  .bg-gold-gradient {
+    @apply bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600;
+  }
+  
+  .bg-silver-gradient {
+    @apply bg-gradient-to-r from-slate-300 via-slate-200 to-slate-400;
+  }
+  
+  .bg-dark-luxury {
+    @apply bg-gradient-to-b from-slate-900 via-blue-950 to-slate-900;
+  }
+  
+  /* Texto con degradados */
+  .text-gold-gradient {
+    @apply text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600;
+  }
+  
+  .text-blue-gradient {
+    @apply text-transparent bg-clip-text bg-gradient-to-r from-blue-700 via-blue-500 to-blue-800;
+  }
+  
+  /* Efectos de tarjeta de lujo */
+  .card-luxury {
+    @apply shadow-lg relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 transition-all duration-300;
+    background-color: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(10px);
+  }
+  
+  .card-luxury:hover {
+    @apply shadow-xl transform-gpu -translate-y-1;
+    border-color: hsl(var(--primary));
+  }
+  
+  .card-luxury::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    width: calc(100% + 4px);
+    height: calc(100% + 4px);
+    z-index: -1;
+    @apply bg-gradient-to-br from-primary/50 via-transparent to-secondary/50 rounded-xl;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  
+  .card-luxury:hover::before {
+    opacity: 1;
+  }
+  
+  /* Animaciones sutiles */
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+  
+  @keyframes float {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+    100% { transform: translateY(0px); }
+  }
+  
+  .animate-pulse-slow {
+    animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  /* Fondo futurista con patrón */
+  .bg-pattern-grid {
+    background-color: hsl(var(--background));
+    background-image: 
+      linear-gradient(to right, hsl(var(--primary) / 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--primary) / 0.05) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  
+  /* Futurista borde de gradiente */
+  .border-gradient {
+    position: relative;
+    border-radius: var(--radius);
+  }
+  
+  .border-gradient::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    border-radius: calc(var(--radius) + 2px);
+    background: linear-gradient(45deg, hsl(var(--primary)), hsl(var(--secondary)));
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  
+  .border-gradient:hover::before {
+    opacity: 1;
+  }
+  
+  /* Superposición de vidrio (glass morphism) */
+  .glass-overlay {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: var(--radius);
+  }
+  
+  .dark .glass-overlay {
+    background: rgba(30, 30, 60, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+}
+
+.font-handwriting {
+  font-family: 'Handwriting', 'Signature', cursive;
+}
+
+/* Premium styles */
+.glass-card {
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.premium-gradient {
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(234, 85%, 45%) 100%);
+}
+
+.premium-shadow {
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.3s ease;
+}
+
+.premium-shadow:hover {
+  box-shadow: 0 15px 30px -8px rgba(0, 0, 0, 0.12), 0 10px 15px -5px rgba(0, 0, 0, 0.1);
+}
+
+.premium-header {
+  box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.15), 0 8px 10px -6px rgba(59, 130, 246, 0.1);
+}
+
+.premium-title {
+  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.15);
+}
+
+.premium-button {
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.premium-button-default:hover, 
+.premium-button-secondary:hover,
+.premium-button-success:hover {
+  transform: translateY(-2px);
+}
+
+.premium-button-default:active, 
+.premium-button-secondary:active,
+.premium-button-success:active {
+  transform: translateY(0);
+}
+
+/* Animation for shimmering effect */
+@keyframes shimmer {
+  0% {
+    background-position: -80vw 0;
+  }
+  100% {
+    background-position: 80vw 0;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    rgba(255, 255, 255, 0.2) 50%, 
+    transparent 100%
+  );
+  background-size: 50vw 100%;
+  animation: shimmer 2s infinite linear;
+}
+
+/* Improved card styles */
+.card {
+  transition: all 0.3s ease;
+}
+
+.card:hover {
+  box-shadow: 0 6px 15px -3px rgba(0, 0, 0, 0.1), 
+              0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
+
+/* Table styling enhancement */
+.item-table-container {
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.item-table-container th {
+  font-weight: 600;
+}
+
+.signature-display {
+  transition: all 0.3s ease;
+}
+
+.signature-image {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.signature-image:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 98%;
+    --foreground: 222.2 84% 4.9%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    
+    --secondary: 172.2 76.9% 44.3%;
+    --secondary-foreground: 210 40% 98%;
+    
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 142.1 76.2% 36.3%;
+    --success-foreground: 210 40% 98%;
+
+    --warning: 38 92.7% 50.6%;
+    --warning-foreground: 210 40% 98%;
+    
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    
+    --radius: 0.5rem;
+
+    --sidebar-background: 222.2 47.4% 11.2%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 221.2 83.2% 53.3%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 217.2 32.6% 17.5%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 216 34% 17%;
+    --sidebar-ring: 224.3 76.3% 48%;
+  }
+ 
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    
+    --secondary: 172.2 76.9% 44.3%;
+    --secondary-foreground: 210 40% 98%;
+    
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 142.1 70.6% 45.3%;
+    --success-foreground: 144.9 80.4% 10%;
+
+    --warning: 48 96.5% 53.9%;
+    --warning-foreground: 38 92.7% 10%;
+    
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+.loading-spinner {
+  border: 3px solid rgba(203, 213, 225, 0.3);
+  border-radius: 50%;
+  border-top: 3px solid hsl(var(--primary));
+  width: 24px;
+  height: 24px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.signature-pad {
+  border: 1px dashed hsl(var(--border));
+  border-radius: 0.375rem;
+  touch-action: none;
+}

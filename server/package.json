@@ -1,0 +1,28 @@
+{
+  "name": "remodra-server",
+  "version": "1.0.0",
+  "description": "Remodra SaaS Server",
+  "main": "index.ts",
+  "scripts": {
+    "start": "node dist/index.js",
+    "build": "tsc",
+    "postinstall": "npm run build",
+    "dev": "ts-node-dev --respawn index.ts"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.0",
+    "@types/express": "^4.17.17",
+    "@types/cors": "^2.8.13",
+    "@types/node": "^18.15.11"
+  },
+  "devDependencies": {
+    "ts-node-dev": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+} 

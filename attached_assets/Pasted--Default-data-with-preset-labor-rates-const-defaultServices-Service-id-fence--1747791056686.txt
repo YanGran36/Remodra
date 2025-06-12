@@ -1,0 +1,131 @@
+/ Default data with preset labor rates
+const defaultServices: Service[] = [
+  {
+    id: 'fence',
+    name: 'Fence Installation',
+    serviceType: 'fence',
+    unit: 'ft',
+    laborRate: 40,
+    laborMethod: 'by_length',
+  },
+  {
+    id: 'roof',
+    name: 'Roof Installation',
+    serviceType: 'roof',
+    unit: 'sqft',
+    laborRate: 3.5,
+    laborMethod: 'by_area',
+  },
+  {
+    id: 'gutters',
+    name: 'Gutter Installation',
+    serviceType: 'gutters',
+    unit: 'ft',
+    laborRate: 7,
+    laborMethod: 'by_length',
+  }
+];
+
+const defaultMaterials: Material[] = [
+  // Materials for fences
+  {
+    id: 'wood_fence',
+    name: 'Wood Fence',
+    category: 'fence',
+    unitPrice: 0,
+    unit: 'ln.ft',
+    supplier: 'Lumber Yard',
+  },
+  {
+    id: 'vinyl_fence',
+    name: 'Vinyl Fence',
+    category: 'fence',
+    unitPrice: 0,
+    unit: 'ln.ft',
+    supplier: 'Modern Materials',
+  },
+  {
+    id: 'chain_link',
+    name: 'Chain Link Fence',
+    category: 'fence',
+    unitPrice: 0,
+    unit: 'ln.ft',
+    supplier: 'Metal Supply Co.',
+  },
+  {
+    id: 'aluminum_fence',
+    name: 'Aluminum Fence',
+    category: 'fence',
+    unitPrice: 0,
+    unit: 'ln.ft',
+    supplier: 'Metal Supply Co.',
+  },
+  {
+    id: 'fence_gate',
+    name: 'Fence Gate',
+    category: 'fence',
+    unitPrice: 0,
+    unit: 'unit',
+    supplier: 'Hardware Supply',
+  },
+  {
+    id: 'post_caps',
+    name: 'Post Caps',
+    category: 'fence',
+    unitPrice: 0,
+    unit: 'unit',
+    supplier: 'Hardware Supply',
+  },
+  
+  // Materials for roofing
+  {
+    id: 'asphalt_shingles',
+    name: 'Asphalt Shingles',
+    category: 'roof',
+    unitPrice: 0,
+    unit: 'sq.ft',
+    supplier: 'Roofing Supply',
+  },
+  {
+    id: 'metal_roofing',
+    name: 'Metal Roofing',
+    category: 'roof',
+    unitPrice: 0,
+    unit: 'sq.ft',
+    supplier: 'Metal Supply Co.',
+  },
+  {
+    id: 'tile_roofing',
+    name: 'Tile Roofing',
+    category: 'roof',
+    unitPrice: 0,
+    unit: 'sq.ft',
+    supplier: 'Premium Materials',
+  },
+  
+  // Materials for gutters
+  {
+    id: 'aluminum_gutters',
+    name: 'Aluminum Gutters',
+    category: 'gutters',
+    unitPrice: 0,
+    unit: 'ln.ft',
+    supplier: 'Gutter Supply',
+  },
+  {
+    id: 'vinyl_gutters',
+    name: 'Vinyl Gutters',
+    category: 'gutters',
+    unitPrice: 0,
+    unit: 'ln.ft',
+    supplier: 'Modern Materials',
+  },
+  {
+    id: 'downspouts',
+    name: 'Downspouts',
+    category: 'gutters',
+    unitPrice: 0,
+    unit: 'unit',
+    supplier: 'Gutter Supply',
+  }
+];

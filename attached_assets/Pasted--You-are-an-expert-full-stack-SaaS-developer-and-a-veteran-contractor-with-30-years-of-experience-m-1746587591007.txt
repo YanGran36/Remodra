@@ -1,0 +1,103 @@
+"You are an expert full-stack SaaS developer and a veteran contractor with 30+ years of experience managing construction businesses. Build a SaaS platform in Replit that allows contractors to manage their entire business workflow in one app.
+
+This is a multi-tenant SaaS platform — each contractor creates their own account and manages their own data in isolation (no sharing between businesses).
+
+The app must include:
+
+1️⃣ Contractor account creation & authentication:
+
+Signup/login with email + password
+
+Only verified contractors can use it (no public access)
+
+Each contractor’s data is private & isolated (multi-tenant architecture)
+
+2️⃣ Calendar system:
+
+Schedule meetings, job dates, follow-ups
+
+Color-coded status (pending, confirmed, completed)
+
+Email/SMS reminders (integrate with Twilio or SendGrid later)
+
+3️⃣ Client database:
+
+Each contractor can manage their own clients (name, contact info, notes, project history)
+
+Fully searchable & filterable
+
+4️⃣ Estimate generator:
+
+Dynamic form builder for line items, tax, discounts
+
+Save, edit, export as PDF
+
+Automatically attach to client profile
+
+5️⃣ Invoice generator:
+
+Create invoices based on estimates
+
+Edit & track payment status (paid, pending, overdue)
+
+Send PDF via email
+
+6️⃣ Digital signature feature:
+
+Client signature pad for estimates/invoices
+
+Secure storage of signatures
+
+7️⃣ Project management dashboard:
+
+Kanban-style or task tracker (To Do, In Progress, Completed)
+
+Visual progress per project
+
+8️⃣ Product order tracking:
+
+Manage material orders, suppliers, delivery status
+
+9️⃣ Notes & attachments:
+
+Upload photos, PDFs, reports linked to each project
+
+🔟 AI Follow-up Agent (Built-in):
+
+The AI agent reads estimates, invoices, and client data
+
+Generates personalized follow-up messages (SMS/email templates)
+
+Sends follow-ups automatically (1 day, 3 days, 7 days after appointment)
+
+Allows contractor to review/approve before sending
+
+Tracks replies & flags leads needing human attention
+
+💡 Extra features:
+
+Notifications (app + email)
+
+Contractor-only dashboard
+
+Admin area (to manage contractor accounts & plans)
+
+Payment/subscription system (Stripe/FastSpring)
+
+Export reports
+
+⚙️ Tech stack:
+
+Frontend: React + TailwindCSS
+
+Backend: Express.js or Flask
+
+Auth: Supabase/Firebase Auth
+
+Database: Supabase (Postgres) or SQLite (multi-tenant)
+
+AI: OpenAI API or in-app GPT-powered assistant
+
+✅ Make the code modular, scalable for SaaS, and well-commented. Include best practices for data privacy, multi-tenancy, and security.
+
+Also suggest improvements or extra AI-powered tools that could give contractors a competitive edge (like automatic delay detection, reorder alerts, or AI job cost analysis)."

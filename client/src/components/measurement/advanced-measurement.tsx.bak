@@ -1,0 +1,1303 @@
+import React, { useRef, useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Slider } from "@/components/ui/slider";
+import {
+  Upload,
+  Pencil,
+  Ruler,
+  Maximize,
+  Square,
+  Save,
+  FileImage,
+  Camera,
+  Undo,
+  Redo,
+  Trash2,
+  Plus,
+  X,
+  Check,
+  Layers,
+  Tag,
+  DollarSign
+} from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+// Tipos de datos para el sistema de medición
+interface Point {
+  x: number;
+  y: number;
+}
+
+interface Measurement {
+  id: string;
+  type: 'line' | 'area' | 'perimeter';
+  points: Point[];
+  length?: number; // en píxeles para líneas
+  area?: number; // en unidades cuadradas para áreas
+  perimeter?: number; // en píxeles para perímetro
+  realLength?: number; // en unidades del mundo real (pies, metros, etc.)
+  realArea?: number; // en unidades cuadradas reales (pies², metros²)
+  realPerimeter?: number; // en unidades reales para perímetro
+  unit: string;
+  label: string;
+  serviceType?: string; // tipo de servicio asociado (roofing, siding, etc.)
+  materialType?: string; // tipo de material para calcular costos
+  costEstimate?: number; // estimación de costo basado en medidas y tipo de servicio
+  color?: string; // Color para visualización
+  notes?: string; // Notas adicionales sobre la medición
+}
+
+// Interfaz para opciones de cálculo
+interface CalculationOptions {
+  servicePrices?: Record<string, { rate: number, unit: string, label: string }>;
+  laborCalculationMethod?: 'by_measurement' | 'hourly' | 'fixed';
+  laborFactor?: number;
+}
+
+interface AdvancedMeasurementProps {
+  initialScale?: number;
+  unit?: string;
+  onMeasurementsChange?: (measurements: Measurement[]) => void;
+  initialMeasurements?: Measurement[];
+  canvasWidth?: number;
+  canvasHeight?: number;
+  showCostEstimates?: boolean;
+  defaultServiceType?: string;
+  calculationOptions?: CalculationOptions;
+}
+
+// Definir tarifas por tipo de servicio y unidad de medida
+const SERVICE_RATES = {
+  roofing: { rate: 5.5, unit: 'sqft', label: 'Roofing' }, // $5.5 por pie cuadrado
+  siding: { rate: 8.0, unit: 'sqft', label: 'Siding' }, // $8.0 por pie cuadrado
+  windows: { rate: 45.0, unit: 'ft', label: 'Windows' }, // $45 por pie lineal de marco
+  gutters: { rate: 12.0, unit: 'ft', label: 'Gutters' }, // $12 por pie lineal
+  painting: { rate: 3.0, unit: 'sqft', label: 'Painting' }, // $3 por pie cuadrado
+  flooring: { rate: 6.0, unit: 'sqft', label: 'Flooring' }, // $6 por pie cuadrado
+  electrical: { rate: 15.0, unit: 'ft', label: 'Electrical' }, // $15 por pie lineal (cableado)
+  plumbing: { rate: 25.0, unit: 'ft', label: 'Plumbing' }, // $25 por pie lineal de tubería
+  hvac: { rate: 10.0, unit: 'sqft', label: 'HVAC' }, // $10 por pie cuadrado de área
+  landscaping: { rate: 4.5, unit: 'sqft', label: 'Landscaping' } // $4.5 por pie cuadrado
+};
+
+// Factores de costo para diferentes materiales
+const MATERIAL_FACTORS: Record<string, { factor: number, label: string }> = {
+  standard: { factor: 1.0, label: 'Standard Quality' },
+  premium: { factor: 1.5, label: 'Premium Quality' },
+  luxury: { factor: 2.5, label: 'Luxury Quality' },
+  economy: { factor: 0.8, label: 'Economy Quality' }
+};
+
+// Paleta de colores para mediciones
+const COLOR_PALETTE = [
+  "#FF5722", // Naranja
+  "#2196F3", // Azul
+  "#4CAF50", // Verde
+  "#9C27B0", // Morado
+  "#F44336", // Rojo
+  "#009688", // Verde azulado
+  "#3F51B5", // Índigo
+  "#FFEB3B", // Amarillo
+  "#795548", // Marrón
+  "#607D8B"  // Gris azulado
+];
+
+// Función para calcular el costo basado en medidas y tipo de servicio, con opciones flexibles
+const calculateCost = (
+  measurement: Measurement,
+  serviceType: string,
+  materialType: string = 'standard',
+  serviceRates: Record<string, { rate: number, unit: string, label: string }>,
+  calcOptions?: CalculationOptions
+): number => {
+  if (!measurement || !serviceType) return 0;
+  
+  // Usar tarifas personalizadas por servicio
+  const service = serviceRates[serviceType as keyof typeof serviceRates];
+  if (!service) return 0;
+  
+  const materialFactor = MATERIAL_FACTORS[materialType as keyof typeof MATERIAL_FACTORS]?.factor || 1.0;
+  
+  // Determinar qué valor usar según el tipo de servicio
+  let measureValue = 0;
+  if (service.unit === 'sqft' && measurement.realArea) {
+    // Servicios basados en área (techos, pisos, etc.)
+    measureValue = measurement.realArea;
+  } else if (service.unit === 'ft' && (measurement.realLength || measurement.realPerimeter)) {
+    // Servicios basados en longitud o perímetro (ventanas, canaletas, vallas, etc.)
+    measureValue = measurement.realLength || measurement.realPerimeter || 0;
+  }
+  
+  // Calcular costo base para materiales
+  const materialsCost = measureValue * service.rate * materialFactor;
+  
+  // Calcular costo de labor basado en el método seleccionado
+  let laborCost = 0;
+  const laborMethod = calcOptions?.laborCalculationMethod || 'by_measurement';
+  const laborFactor = calcOptions?.laborFactor || 0.35; // 35% por defecto
+  
+  if (laborMethod === 'by_measurement') {
+    // Calcular labor como porcentaje del costo de materiales
+    laborCost = materialsCost * laborFactor;
+  } else if (laborMethod === 'hourly') {
+    // Calcular labor por hora - estimación basada en medición
+    // Por ejemplo, para techos: 1 hora por cada 100 sqft, para vallas: 1 hora por cada 20 pies
+    const hoursEstimated = service.unit === 'sqft' 
+      ? measureValue / 100  // 1 hora por cada 100 pies cuadrados
+      : measureValue / 20;  // 1 hora por cada 20 pies lineales
+    
+    const hourlyRate = 45; // $45/hora valor estándar, podría ser configurable
+    laborCost = hoursEstimated * hourlyRate;
+  } else if (laborMethod === 'fixed') {
+    // Tarifa fija para labor
+    laborCost = service.unit === 'sqft' 
+      ? measureValue * 2.5  // $2.50 por pie cuadrado
+      : measureValue * 15;  // $15 por pie lineal
+  }
+  
+  // Retornar costo total (materiales + labor)
+  return materialsCost + laborCost;
+};
+
+// Función para calcular el área de un polígono usando el algoritmo de Shoelace
+const calculatePolygonArea = (points: Point[]): number => {
+  if (points.length < 3) return 0;
+  
+  let area = 0;
+  for (let i = 0; i < points.length; i++) {
+    const j = (i + 1) % points.length;
+    area += points[i].x * points[j].y;
+    area -= points[j].x * points[i].y;
+  }
+  
+  area = Math.abs(area) / 2;
+  return area;
+};
+
+// Función para calcular el perímetro de un polígono
+const calculatePerimeter = (points: Point[]): number => {
+  if (points.length < 2) return 0;
+  
+  let perimeter = 0;
+  for (let i = 0; i < points.length; i++) {
+    const j = (i + 1) % points.length;
+    const dx = points[j].x - points[i].x;
+    const dy = points[j].y - points[i].y;
+    perimeter += Math.sqrt(dx * dx + dy * dy);
+  }
+  
+  return perimeter;
+};
+
+// Distancia entre dos puntos
+const distance = (p1: Point, p2: Point): number => {
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  return Math.sqrt(dx * dx + dy * dy);
+};
+
+// Formatear número con 2 decimales
+const formatNumber = (num: number): string => {
+  return num.toFixed(2);
+};
+
+export default function AdvancedMeasurement({
+  initialScale = 1,
+  unit = "ft",
+  onMeasurementsChange,
+  initialMeasurements = [],
+  canvasWidth = 800,
+  canvasHeight = 600,
+  showCostEstimates = true,
+  defaultServiceType = "roofing",
+  calculationOptions
+}: AdvancedMeasurementProps) {
+  const { toast } = useToast();
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  
+  // Usar tarifas personalizadas si se proporcionan, sino usar las predeterminadas
+  const serviceRates = calculationOptions?.servicePrices || SERVICE_RATES;
+  
+  // Estados principales
+  const [measurements, setMeasurements] = useState<Measurement[]>(initialMeasurements);
+  const [activeTool, setActiveTool] = useState<string>("line");
+  const [activeTab, setActiveTab] = useState("draw");
+  const [scale, setScale] = useState<number>(initialScale); // píxeles por unidad
+  const [selectedServiceType, setSelectedServiceType] = useState<string>(defaultServiceType);
+  const [selectedMaterialType, setSelectedMaterialType] = useState<string>("standard");
+  
+  // Estados para dibujo
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [tempPoints, setTempPoints] = useState<Point[]>([]);
+  const [selectedMeasurement, setSelectedMeasurement] = useState<string | null>(null);
+  const [backgroundImage, setBackgroundImage] = useState<HTMLImageElement | null>(null);
+  
+  // Estados para calibración
+  const [calibrationMode, setCalibrationMode] = useState(false);
+  const [calibrationLength, setCalibrationLength] = useState<number>(10); // Por defecto 10 pies
+  
+  // Referencia para input de archivos
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Función para dibujar todo el canvas
+  const drawCanvas = (ctx: CanvasRenderingContext2D) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    // Limpiar canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Dibujar imagen de fondo si está disponible
+    if (backgroundImage) {
+      const aspectRatio = backgroundImage.width / backgroundImage.height;
+      let drawWidth, drawHeight;
+      
+      if (backgroundImage.width > backgroundImage.height) {
+        drawWidth = canvas.width;
+        drawHeight = canvas.width / aspectRatio;
+      } else {
+        drawHeight = canvas.height;
+        drawWidth = canvas.height * aspectRatio;
+      }
+      
+      const x = (canvas.width - drawWidth) / 2;
+      const y = (canvas.height - drawHeight) / 2;
+      
+      ctx.drawImage(backgroundImage, x, y, drawWidth, drawHeight);
+    }
+    
+    // Dibujar todas las mediciones
+    measurements.forEach(measurement => {
+      drawMeasurement(ctx, measurement);
+    });
+    
+    // Dibujar puntos temporales (medición en progreso)
+    if (tempPoints.length > 0) {
+      drawTempPoints(ctx);
+    }
+  };
+  
+  // Inicializar canvas y dibujar
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    drawCanvas(ctx);
+  }, [measurements, tempPoints, backgroundImage, selectedMeasurement]);
+  
+  // Notificar al componente padre cuando cambien las mediciones
+  useEffect(() => {
+    if (onMeasurementsChange) {
+      onMeasurementsChange(measurements);
+    }
+  }, [measurements, onMeasurementsChange]);
+  
+  // Dibujar una medición en el canvas
+  const drawMeasurement = (ctx: CanvasRenderingContext2D, measurement: Measurement) => {
+    const { points, type, label, color = COLOR_PALETTE[0] } = measurement;
+    const isSelected = measurement.id === selectedMeasurement;
+    
+    if (points.length === 0) return;
+    
+    // Establecer estilo
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = isSelected ? 3 : 2;
+    
+    // Dibujar según el tipo de medición
+    if (type === 'line' && points.length >= 2) {
+      // Dibujar línea
+      const [start, end] = points;
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+      
+      // Dibujar puntos de extremo
+      ctx.beginPath();
+      ctx.arc(start.x, start.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.beginPath();
+      ctx.arc(end.x, end.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Dibujar etiqueta
+      drawLabel(ctx, [(start.x + end.x) / 2, (start.y + end.y) / 2], label, color);
+      
+    } else if ((type === 'area' || type === 'perimeter') && points.length >= 3) {
+      // Dibujar polígono
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      
+      for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].x, points[i].y);
+      }
+      
+      // Cerrar el polígono
+      ctx.closePath();
+      ctx.stroke();
+      
+      // Si es un área, rellenar con transparencia
+      if (type === 'area') {
+        ctx.fillStyle = `${color}33`; // Agregar transparencia al color
+        ctx.fill();
+      }
+      
+      // Dibujar puntos en los vértices
+      points.forEach(point => {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+      });
+      
+      // Calcular centroide para colocar la etiqueta
+      const centroid = calculateCentroid(points);
+      drawLabel(ctx, [centroid.x, centroid.y], label, color);
+    }
+  };
+  
+  // Variable para rastrear medición temporal mientras se mueve el cursor
+  const [tempCursorPos, setTempCursorPos] = useState<Point | null>(null);
+  
+  // Dibujar puntos temporales durante el dibujo
+  const drawTempPoints = (ctx: CanvasRenderingContext2D) => {
+    if (tempPoints.length === 0) return;
+    
+    // Establecer estilo
+    ctx.strokeStyle = "#FF5722";
+    ctx.fillStyle = "#FF5722";
+    ctx.lineWidth = 2;
+    
+    // Dibujar líneas entre puntos
+    if (tempPoints.length >= 1) {
+      ctx.beginPath();
+      ctx.moveTo(tempPoints[0].x, tempPoints[0].y);
+      
+      for (let i = 1; i < tempPoints.length; i++) {
+        ctx.lineTo(tempPoints[i].x, tempPoints[i].y);
+      }
+      
+      // Si hay una medición temporal activa (cursor moviéndose), dibujar línea al cursor
+      if (isDrawing && tempMeasurement && activeTool === 'line') {
+        ctx.lineTo(tempMeasurement.x, tempMeasurement.y);
+      }
+      // Si estamos dibujando un área o perímetro, mostrar línea hasta el primer punto para cerrar
+      else if ((activeTool === 'area' || activeTool === 'perimeter') && tempPoints.length > 2) {
+        ctx.lineTo(tempPoints[0].x, tempPoints[0].y);
+      }
+      
+      ctx.stroke();
+    }
+    
+    // Dibujar puntos
+    tempPoints.forEach((point, index) => {
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, index === 0 ? 6 : 4, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    
+    // Mostrar distancia en tiempo real mientras se mueve el cursor (solo para líneas)
+    if (isDrawing && tempMeasurement && activeTool === 'line' && tempPoints.length >= 1) {
+      const lastPoint = tempPoints[tempPoints.length - 1];
+      const midX = (lastPoint.x + tempMeasurement.x) / 2;
+      const midY = (lastPoint.y + tempMeasurement.y) / 2;
+      
+      drawLabel(
+        ctx, 
+        [midX, midY], 
+        `${formatNumber(tempMeasurement.distance)} ${unit}`, 
+        "#FF5722"
+      );
+    }
+    
+    // Mostrar distancias entre puntos existentes
+    if (tempPoints.length >= 2 && activeTool === 'line') {
+      for (let i = 1; i < tempPoints.length; i++) {
+        const start = tempPoints[i-1];
+        const end = tempPoints[i];
+        const pixelLength = distance(start, end);
+        const realLength = pixelLength / scale;
+        
+        // Calcular posición para la etiqueta
+        const midX = (start.x + end.x) / 2;
+        const midY = (start.y + end.y) / 2;
+        
+        // Dibujar etiqueta con la medida
+        drawLabel(ctx, [midX, midY], `${formatNumber(realLength)} ${unit}`, "#FF5722");
+      }
+    }
+    
+    // Si es un área o perímetro con al menos 3 puntos, mostrar área/perímetro temporal
+    if ((activeTool === 'area' || activeTool === 'perimeter') && tempPoints.length >= 3) {
+      const closedPoints = [...tempPoints, tempPoints[0]]; // Cerrar el polígono para cálculos
+      
+      if (activeTool === 'area') {
+        const pixelArea = calculatePolygonArea(tempPoints);
+        const realArea = pixelArea / (scale * scale);
+        
+        // Calcular centroide para colocar la etiqueta
+        const centroid = calculateCentroid(tempPoints);
+        drawLabel(ctx, [centroid.x, centroid.y], `${formatNumber(realArea)} ${unit}²`, "#FF5722");
+      } else {
+        const pixelPerimeter = calculatePerimeter(tempPoints);
+        const realPerimeter = pixelPerimeter / scale;
+        
+        // Calcular centroide para colocar la etiqueta
+        const centroid = calculateCentroid(tempPoints);
+        drawLabel(ctx, [centroid.x, centroid.y], `${formatNumber(realPerimeter)} ${unit}`, "#FF5722");
+      }
+    }
+  };
+  
+  // Dibujar una etiqueta de texto
+  const drawLabel = (ctx: CanvasRenderingContext2D, position: [number, number], text: string, color: string) => {
+    const [x, y] = position;
+    
+    // Fondo para la etiqueta
+    const textWidth = ctx.measureText(text).width + 10;
+    
+    ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+    ctx.fillRect(x - textWidth / 2, y - 10, textWidth, 20);
+    
+    // Texto de la etiqueta
+    ctx.fillStyle = color;
+    ctx.font = "14px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, x, y);
+  };
+  
+  // Calcular el centroide de un polígono
+  const calculateCentroid = (points: Point[]): Point => {
+    if (points.length === 0) return { x: 0, y: 0 };
+    
+    let sumX = 0;
+    let sumY = 0;
+    
+    points.forEach(point => {
+      sumX += point.x;
+      sumY += point.y;
+    });
+    
+    return {
+      x: sumX / points.length,
+      y: sumY / points.length
+    };
+  };
+  
+
+  };
+  
+  // Manejar clic en el canvas
+  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    if (calibrationMode) {
+      // En modo de calibración, se maneja diferente
+      handleCalibrationClick(x, y);
+      return;
+    }
+    
+    // Verificar si se está seleccionando una medición existente
+    if (activeTool === 'select') {
+      const selected = findMeasurementAtPoint(x, y);
+      setSelectedMeasurement(selected?.id || null);
+      return;
+    }
+    
+    // Si estamos usando herramientas de dibujo
+    if (['line', 'area', 'perimeter'].includes(activeTool)) {
+      setIsDrawing(true);
+      
+      // Para líneas, acumular puntos hasta el doble clic
+      if (activeTool === 'line') {
+        if (tempPoints.length === 0) {
+          // Primer punto
+          setTempPoints([{ x, y }]);
+        } else {
+          // Agregar otro punto - continuamos hasta doble clic
+          setTempPoints([...tempPoints, { x, y }]);
+        }
+      } 
+      // Para áreas y perímetros, acumular puntos hasta que se cierre o finalice
+      else if (activeTool === 'area' || activeTool === 'perimeter') {
+        // Verificar si estamos cerrando el polígono (clic cerca del primer punto)
+        if (tempPoints.length >= 3 && distance({ x, y }, tempPoints[0]) < 20) {
+          // Cerrar el polígono
+          finalizeMeasurement(tempPoints);
+          setTempPoints([]);
+          setIsDrawing(false);
+        } else {
+          // Agregar un nuevo punto
+          setTempPoints([...tempPoints, { x, y }]);
+        }
+      }
+    }
+  };
+  
+  // Buscar una medición que contenga el punto dado
+  const findMeasurementAtPoint = (x: number, y: number): Measurement | null => {
+    // Buscar en orden inverso para que las mediciones más recientes tengan prioridad
+    for (let i = measurements.length - 1; i >= 0; i--) {
+      const measurement = measurements[i];
+      
+      if (measurement.type === 'line' && measurement.points.length === 2) {
+        // Para líneas, verificar distancia a la línea
+        const [start, end] = measurement.points;
+        if (isPointNearLine(x, y, start, end, 10)) { // 10px de tolerancia
+          return measurement;
+        }
+      } 
+      else if (['area', 'perimeter'].includes(measurement.type) && measurement.points.length >= 3) {
+        // Para polígonos, verificar si el punto está dentro o cerca del borde
+        if (isPointInPolygon(x, y, measurement.points) || 
+            isPointNearPolygonEdge(x, y, measurement.points, 10)) {
+          return measurement;
+        }
+      }
+    }
+    
+    return null;
+  };
+  
+  // Verificar si un punto está cerca de una línea
+  const isPointNearLine = (x: number, y: number, start: Point, end: Point, tolerance: number): boolean => {
+    const A = x - start.x;
+    const B = y - start.y;
+    const C = end.x - start.x;
+    const D = end.y - start.y;
+    
+    const dot = A * C + B * D;
+    const len_sq = C * C + D * D;
+    let param = -1;
+    
+    if (len_sq !== 0) param = dot / len_sq;
+    
+    let xx, yy;
+    
+    if (param < 0) {
+      xx = start.x;
+      yy = start.y;
+    } else if (param > 1) {
+      xx = end.x;
+      yy = end.y;
+    } else {
+      xx = start.x + param * C;
+      yy = start.y + param * D;
+    }
+    
+    const dx = x - xx;
+    const dy = y - yy;
+    
+    return Math.sqrt(dx * dx + dy * dy) < tolerance;
+  };
+  
+  // Verificar si un punto está dentro de un polígono (algoritmo Ray casting)
+  const isPointInPolygon = (x: number, y: number, points: Point[]): boolean => {
+    let inside = false;
+    
+    for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+      const xi = points[i].x, yi = points[i].y;
+      const xj = points[j].x, yj = points[j].y;
+      
+      const intersect = ((yi > y) !== (yj > y)) &&
+        (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+      
+      if (intersect) inside = !inside;
+    }
+    
+    return inside;
+  };
+  
+  // Verificar si un punto está cerca del borde de un polígono
+  const isPointNearPolygonEdge = (x: number, y: number, points: Point[], tolerance: number): boolean => {
+    for (let i = 0; i < points.length; i++) {
+      const j = (i + 1) % points.length;
+      if (isPointNearLine(x, y, points[i], points[j], tolerance)) {
+        return true;
+      }
+    }
+    return false;
+  };
+  
+  // Finalizar la creación de una medición
+  const finalizeMeasurement = (points: Point[]) => {
+    if (points.length < 2) return;
+    
+    let newMeasurement: Measurement;
+    const measurementColor = COLOR_PALETTE[measurements.length % COLOR_PALETTE.length];
+    
+    // Usar servicio de las opciones del componente principal, si está disponible
+    const currentServiceType = selectedServiceType;
+    
+    if (activeTool === 'line' && points.length === 2) {
+      // Línea: calcular longitud
+      const pixelLength = distance(points[0], points[1]);
+      const realLength = pixelLength / scale;
+      
+      // Calcular el costo considerando el tipo de servicio y material
+      const costEstimate = calculateCost({
+        id: '',
+        type: 'line',
+        points: [],
+        realLength: realLength,
+        unit,
+        label: ''
+      }, selectedServiceType, selectedMaterialType, serviceRates, calculationOptions);
+      
+      newMeasurement = {
+        id: Date.now().toString(),
+        type: 'line',
+        points: points,
+        length: pixelLength,
+        realLength: realLength,
+        unit: unit,
+        label: `${formatNumber(realLength)} ${unit}`,
+        color: measurementColor,
+        serviceType: selectedServiceType,
+        materialType: selectedMaterialType,
+        costEstimate: costEstimate
+      };
+    } 
+    else if (activeTool === 'area' && points.length >= 3) {
+      // Área: calcular área y perímetro
+      const pixelArea = calculatePolygonArea(points);
+      const pixelPerimeter = calculatePerimeter(points);
+      const realArea = pixelArea / (scale * scale);
+      const realPerimeter = pixelPerimeter / scale;
+      
+      // Calcular el costo considerando el tipo de servicio y material
+      const costEstimate = calculateCost({
+        id: '',
+        type: 'area',
+        points: [],
+        realArea: realArea,
+        realPerimeter: realPerimeter,
+        unit,
+        label: ''
+      }, selectedServiceType, selectedMaterialType, serviceRates, calculationOptions);
+      
+      newMeasurement = {
+        id: Date.now().toString(),
+        type: 'area',
+        points: points,
+        area: pixelArea,
+        perimeter: pixelPerimeter,
+        realArea: realArea,
+        realPerimeter: realPerimeter,
+        unit: unit,
+        label: `${formatNumber(realArea)} ${unit}²`,
+        color: measurementColor,
+        serviceType: selectedServiceType,
+        materialType: selectedMaterialType,
+        costEstimate: costEstimate
+      };
+    }
+    else if (activeTool === 'perimeter' && points.length >= 3) {
+      // Perímetro: calcular longitud del perímetro
+      const pixelPerimeter = calculatePerimeter(points);
+      const realPerimeter = pixelPerimeter / scale;
+      
+      // Calcular el costo considerando el tipo de servicio y material
+      const costEstimate = calculateCost({
+        id: Date.now().toString(),
+        type: 'perimeter',
+        points: [],
+        realPerimeter: realPerimeter,
+        unit,
+        label: ''
+      }, selectedServiceType, selectedMaterialType, serviceRates, calculationOptions);
+      
+      newMeasurement = {
+        id: Date.now().toString(),
+        type: 'perimeter',
+        points: points,
+        perimeter: pixelPerimeter,
+        realPerimeter: realPerimeter,
+        unit: unit,
+        label: `${formatNumber(realPerimeter)} ${unit}`,
+        color: measurementColor,
+        serviceType: selectedServiceType,
+        materialType: selectedMaterialType,
+        costEstimate: costEstimate
+      };
+    }
+    else {
+      return; // No se pudo crear la medición
+    }
+    
+    // Calcular estimación de costo si se especifica un tipo de servicio
+    if (selectedServiceType && showCostEstimates) {
+      newMeasurement.costEstimate = calculateCost(
+        newMeasurement, 
+        selectedServiceType, 
+        selectedMaterialType,
+        serviceRates,
+        calculationOptions
+      );
+    }
+    
+    setMeasurements([...measurements, newMeasurement]);
+    
+    toast({
+      title: "Medición agregada",
+      description: `${newMeasurement.type === 'line' ? 'Línea' : 
+                    newMeasurement.type === 'area' ? 'Área' : 'Perímetro'} 
+                    medida: ${newMeasurement.label}`,
+    });
+  };
+  
+  // Manejar clic en modo calibración
+  const handleCalibrationClick = (x: number, y: number) => {
+    if (tempPoints.length === 0) {
+      // Primer punto de calibración
+      setTempPoints([{ x, y }]);
+    } else if (tempPoints.length === 1) {
+      // Segundo punto - completar la calibración
+      const newPoints = [...tempPoints, { x, y }];
+      const pixelLength = distance(newPoints[0], newPoints[1]);
+      
+      // Calibrar la escala (pixels por unidad)
+      const newScale = pixelLength / calibrationLength;
+      setScale(newScale);
+      
+      toast({
+        title: "Calibración completada",
+        description: `Escala establecida a ${newScale.toFixed(2)} píxeles por ${unit}`,
+      });
+      
+      // Salir del modo calibración
+      setCalibrationMode(false);
+      setTempPoints([]);
+    }
+  };
+  
+  // Iniciar modo calibración
+  const handleStartCalibration = () => {
+    setCalibrationMode(true);
+    setTempPoints([]);
+    setActiveTool('line');
+    
+    toast({
+      title: "Modo de calibración activado",
+      description: `Dibuje una línea con una longitud conocida de ${calibrationLength} ${unit}`,
+    });
+  };
+  
+  // Borrar la medición seleccionada
+  const handleDeleteSelected = () => {
+    if (!selectedMeasurement) return;
+    
+    setMeasurements(measurements.filter(m => m.id !== selectedMeasurement));
+    setSelectedMeasurement(null);
+    
+    toast({
+      title: "Medición eliminada",
+      description: "La medición seleccionada ha sido eliminada.",
+    });
+  };
+  
+  // Borrar todas las mediciones
+  const handleClearAll = () => {
+    setMeasurements([]);
+    setSelectedMeasurement(null);
+    
+    toast({
+      title: "Mediciones borradas",
+      description: "Todas las mediciones han sido eliminadas.",
+    });
+  };
+  
+  // Cargar imagen de fondo
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.src = reader.result as string;
+        img.onload = () => {
+          setBackgroundImage(img);
+          
+          toast({
+            title: "Imagen cargada",
+            description: "La imagen se ha cargado correctamente. Puede comenzar a tomar medidas.",
+          });
+          
+          // Sugerir calibración
+          setCalibrationMode(true);
+          setActiveTool('line');
+          setActiveTab('measure');
+        };
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+  
+  // Descargar la imagen con mediciones
+  const handleDownload = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const dataUrl = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = 'property-measurement.png';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    
+    toast({
+      title: "Imagen descargada",
+      description: "La imagen con las mediciones ha sido descargada.",
+    });
+  };
+  
+  // Completar polígono actual
+  const handleCompletePolygon = () => {
+    if (tempPoints.length >= 3) {
+      finalizeMeasurement(tempPoints);
+      setTempPoints([]);
+    } else {
+      toast({
+        title: "No se puede completar",
+        description: "Se necesitan al menos 3 puntos para crear un área o perímetro.",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  // Cancelar dibujo actual
+  const handleCancelDrawing = () => {
+    setTempPoints([]);
+    
+    toast({
+      title: "Dibujo cancelado",
+      description: "Se ha cancelado el dibujo actual.",
+    });
+  };
+  
+  // Calcular total de costos estimados
+  const calculateTotalCost = (): number => {
+    return measurements.reduce((total, measurement) => {
+      return total + (measurement.costEstimate || 0);
+    }, 0);
+  };
+
+  return (
+    <Card className="w-full max-w-4xl mx-auto">
+      <CardHeader>
+        <CardTitle>Advanced Digital Measurement</CardTitle>
+        <CardDescription>
+          Upload an image and take precise measurements for accurate cost estimates.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid grid-cols-3 mb-4">
+            <TabsTrigger value="draw">Draw</TabsTrigger>
+            <TabsTrigger value="measure">Measure</TabsTrigger>
+            <TabsTrigger value="cost">Cost Analysis</TabsTrigger>
+          </TabsList>
+          
+          {/* Pestaña de dibujo */}
+          <TabsContent value="draw" className="space-y-4">
+            <div className="flex flex-wrap gap-2 mb-4">
+              <Button 
+                variant={activeTool === 'line' ? "default" : "outline"} 
+                size="sm" 
+                onClick={() => {
+                  setActiveTool('line');
+                  setTempPoints([]);
+                }}
+              >
+                <Ruler className="h-4 w-4 mr-2" />
+                Line
+              </Button>
+              <Button 
+                variant={activeTool === 'area' ? "default" : "outline"} 
+                size="sm" 
+                onClick={() => {
+                  setActiveTool('area');
+                  setTempPoints([]);
+                }}
+              >
+                <Square className="h-4 w-4 mr-2" />
+                Area
+              </Button>
+              <Button 
+                variant={activeTool === 'perimeter' ? "default" : "outline"} 
+                size="sm" 
+                onClick={() => {
+                  setActiveTool('perimeter');
+                  setTempPoints([]);
+                }}
+              >
+                <Layers className="h-4 w-4 mr-2" />
+                Perimeter
+              </Button>
+              <Button 
+                variant={activeTool === 'select' ? "default" : "outline"} 
+                size="sm" 
+                onClick={() => {
+                  setActiveTool('select');
+                  setTempPoints([]);
+                }}
+              >
+                <Pencil className="h-4 w-4 mr-2" />
+                Select
+              </Button>
+              <Button 
+                variant="destructive" 
+                size="sm"
+                onClick={handleClearAll}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Clear All
+              </Button>
+            </div>
+            
+            {/* Controles adicionales para polígonos */}
+            {(activeTool === 'area' || activeTool === 'perimeter') && tempPoints.length > 0 && (
+              <div className="flex gap-2 mb-4 p-2 border rounded bg-muted">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleCompletePolygon}
+                  disabled={tempPoints.length < 3}
+                >
+                  <Check className="h-4 w-4 mr-2" />
+                  Complete Shape
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleCancelDrawing}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel
+                </Button>
+                <span className="text-sm text-muted-foreground flex items-center ml-2">
+                  {tempPoints.length} points | Click on first point to close
+                </span>
+              </div>
+            )}
+            
+            {/* Controles para eliminar seleccionados */}
+            {activeTool === 'select' && selectedMeasurement && (
+              <div className="flex gap-2 mb-4 p-2 border rounded bg-muted">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleDeleteSelected}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Selected
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setSelectedMeasurement(null)}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel
+                </Button>
+              </div>
+            )}
+          </TabsContent>
+          
+          {/* Pestaña de medición */}
+          <TabsContent value="measure" className="space-y-4">
+            <div className="grid gap-4 mb-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Service Type</Label>
+                  <Select
+                    value={selectedServiceType}
+                    onValueChange={setSelectedServiceType}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select service" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(SERVICE_RATES).map(([key, service]) => (
+                        <SelectItem key={key} value={key}>
+                          {service.label} (${service.rate}/{service.unit})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Material Quality</Label>
+                  <Select
+                    value={selectedMaterialType}
+                    onValueChange={setSelectedMaterialType}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select material type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(MATERIAL_FACTORS).map(([key, material]) => (
+                        <SelectItem key={key} value={key}>
+                          {material.label} (x{material.factor})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              <div>
+                <Label>Calibration</Label>
+                <div className="flex items-center gap-4 mt-2">
+                  <div className="flex-1">
+                    <Slider
+                      value={[calibrationLength]}
+                      min={1}
+                      max={100}
+                      step={1}
+                      onValueChange={(value) => setCalibrationLength(value[0])}
+                    />
+                  </div>
+                  <span className="font-medium w-20 text-center">{calibrationLength} {unit}</span>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleStartCalibration}
+                  >
+                    <Maximize className="h-4 w-4 mr-2" />
+                    Calibrate
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Current scale: {scale.toFixed(2)} pixels per {unit}
+                </p>
+              </div>
+            </div>
+            
+            {calibrationMode && (
+              <div className="mb-4 p-3 border rounded-md bg-muted border-yellow-500">
+                <h3 className="font-medium">Calibration Mode</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Draw a line in the image with a known measurement of {calibrationLength} {unit}.
+                  Click once to start and again to end the line.
+                </p>
+              </div>
+            )}
+          </TabsContent>
+          
+          {/* Pestaña de análisis de costos */}
+          <TabsContent value="cost" className="space-y-4">
+            {measurements.length > 0 ? (
+              <div>
+                <Table>
+                  <TableCaption>Cost estimates based on measurements</TableCaption>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Service</TableHead>
+                      <TableHead>Measurement</TableHead>
+                      <TableHead>Material</TableHead>
+                      <TableHead className="text-right">Cost Estimate</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {measurements.map(measurement => {
+                      const service = SERVICE_RATES[measurement.serviceType as keyof typeof SERVICE_RATES];
+                      const material = MATERIAL_FACTORS[measurement.materialType as keyof typeof MATERIAL_FACTORS];
+                      const cost = measurement.costEstimate || 0;
+                      
+                      return (
+                        <TableRow key={measurement.id}>
+                          <TableCell>
+                            {measurement.type === 'line' ? 'Line' : 
+                             measurement.type === 'area' ? 'Area' : 'Perimeter'}
+                          </TableCell>
+                          <TableCell>{service?.label || 'N/A'}</TableCell>
+                          <TableCell>{measurement.label}</TableCell>
+                          <TableCell>{material?.label || 'Standard'}</TableCell>
+                          <TableCell className="text-right">${cost.toFixed(2)}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-right font-medium">Total</TableCell>
+                      <TableCell className="text-right font-bold">${calculateTotalCost().toFixed(2)}</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+                
+                <div className="mt-4 p-4 border rounded-md bg-primary/10">
+                  <h3 className="font-medium flex items-center">
+                    <DollarSign className="h-5 w-5 mr-2 text-primary" />
+                    Cost Summary
+                  </h3>
+                  <p className="text-sm mt-2">
+                    The total estimated cost for all measurements is ${calculateTotalCost().toFixed(2)}.
+                    This estimate is based on the current service rates and material quality factors.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center p-8 border rounded-lg bg-muted">
+                <h3 className="font-medium">No measurements yet</h3>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Take measurements on the Draw tab to see cost estimates
+                </p>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+        
+        {/* Canvas de dibujo */}
+        <div className="mt-4 border rounded-md overflow-hidden">
+          <canvas
+            ref={canvasRef}
+            width={canvasWidth}
+            height={canvasHeight}
+            className="w-full h-auto bg-white cursor-crosshair"
+            onClick={handleCanvasClick}
+            onMouseMove={handleMouseMove}
+            onDoubleClick={handleDoubleClick}
+          />
+        </div>
+        
+        {/* Controles de imagen */}
+        <div className="flex flex-wrap gap-2 mt-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Upload Image
+          </Button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            accept="image/*"
+            onChange={handleImageUpload}
+          />
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDownload}
+            disabled={!backgroundImage && measurements.length === 0}
+          >
+            <Save className="h-4 w-4 mr-2" />
+            Download
+          </Button>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              navigator.mediaDevices.getUserMedia({ video: true })
+                .then((stream) => {
+                  // Aquí se implementaría la captura de imagen de la cámara
+                  // Es un placeholder para funcionalidad futura
+                  toast({
+                    title: "Camera access granted",
+                    description: "This feature is coming soon.",
+                  });
+                })
+                .catch((err) => {
+                  console.error("Error accessing camera:", err);
+                  toast({
+                    title: "Camera access denied",
+                    description: "Please allow camera access to use this feature.",
+                    variant: "destructive"
+                  });
+                });
+            }}
+          >
+            <Camera className="h-4 w-4 mr-2" />
+            Use Camera
+          </Button>
+        </div>
+        
+        {/* Lista de mediciones */}
+        {measurements.length > 0 && (
+          <div className="mt-4">
+            <h3 className="text-sm font-medium mb-2">Measurements ({measurements.length})</h3>
+            <div className="text-sm space-y-1 max-h-60 overflow-y-auto pr-2">
+              {measurements.map(m => (
+                <div 
+                  key={m.id} 
+                  className={`px-3 py-2 rounded-sm flex justify-between items-center cursor-pointer hover:bg-muted/80 ${
+                    selectedMeasurement === m.id ? 'bg-primary/10 border border-primary/30' : 'bg-muted'
+                  }`}
+                  onClick={() => setSelectedMeasurement(m.id)}
+                >
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-3 h-3 rounded-full" 
+                      style={{ backgroundColor: m.color || '#FF5722' }}
+                    />
+                    <span>
+                      {m.type === 'line' ? 'Line' : 
+                       m.type === 'area' ? 'Area' : 'Perimeter'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-medium">{m.label}</span>
+                    {m.costEstimate && (
+                      <span className="text-primary font-medium">
+                        ${m.costEstimate.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+      <CardFooter className="flex justify-between border-t pt-4">
+        <div className="text-sm text-muted-foreground">
+          Scale: {scale.toFixed(2)} pixels/{unit} | {measurements.length} measurements
+        </div>
+        <div className="flex items-center gap-2">
+          {showCostEstimates && (
+            <div className="text-sm font-medium">
+              Total: ${calculateTotalCost().toFixed(2)}
+            </div>
+          )}
+        </div>
+      </CardFooter>
+    </Card>
+  );
+}

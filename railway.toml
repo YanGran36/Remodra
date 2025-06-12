@@ -1,0 +1,10 @@
+[build]
+builder = "nixpacks"
+buildCommand = "cd server && npm install"
+
+[deploy]
+startCommand = "cd server && npm start"
+healthcheckPath = "/"
+healthcheckTimeout = 100
+restartPolicyType = "on-failure"
+restartPolicyMaxRetries = 10 

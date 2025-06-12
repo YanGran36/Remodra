@@ -1,0 +1,1 @@
+ALTER TABLE material_pricing ADD COLUMN IF NOT EXISTS code TEXT; ALTER TABLE material_pricing ADD COLUMN IF NOT EXISTS material_id TEXT; ALTER TABLE material_pricing ADD COLUMN IF NOT EXISTS id_string TEXT;

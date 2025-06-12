@@ -1,0 +1,334 @@
+# SaaS Subscription Access Control Implementation
+
+## Overview
+Implement comprehensive subscription-based access control for the existing React + Node.js + TypeScript SaaS platform with PostgreSQL database. The system needs to enforce plan limits and features based on user subscriptions (Basic $29, Pro $59, Business $99).
+
+## Core Requirements
+
+### 1. Database Schema Updates
+```sql
+-- Update users table to include subscription fields if not already present
+ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_plan VARCHAR(20) DEFAULT 'basic';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status VARCHAR(20) DEFAULT 'active';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_start_date TIMESTAMP;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_end_date TIMESTAMP;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(255);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id VARCHAR(255);
+
+-- Create subscription_limits table
+CREATE TABLE IF NOT EXISTS subscription_limits (
+    id SERIAL PRIMARY KEY,
+    plan_name VARCHAR(20) UNIQUE NOT NULL,
+    max_clients INTEGER,
+    ai_cost_analysis BOOLEAN DEFAULT FALSE,
+    time_clock_access BOOLEAN DEFAULT FALSE,
+    stripe_payments BOOLEAN DEFAULT FALSE,
+    custom_portal BOOLEAN DEFAULT FALSE,
+    fully_branded_portal BOOLEAN DEFAULT FALSE,
+    unlimited_ai_analysis BOOLEAN DEFAULT FALSE,
+    price_monthly DECIMAL(10,2)
+);
+
+-- Insert plan limits
+INSERT INTO subscription_limits (plan_name, max_clients, ai_cost_analysis, time_clock_access, stripe_payments, custom_portal, fully_branded_portal, unlimited_ai_analysis, price_monthly) VALUES
+('basic', 10, FALSE, FALSE, FALSE, TRUE, FALSE, FALSE, 29.00),
+('pro', 50, TRUE, TRUE, FALSE, TRUE, FALSE, FALSE, 59.00),
+('business', -1, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, 99.00)
+ON CONFLICT (plan_name) DO UPDATE SET
+max_clients = EXCLUDED.max_clients,
+ai_cost_analysis = EXCLUDED.ai_cost_analysis,
+time_clock_access = EXCLUDED.time_clock_access,
+stripe_payments = EXCLUDED.stripe_payments,
+custom_portal = EXCLUDED.custom_portal,
+fully_branded_portal = EXCLUDED.fully_branded_portal,
+unlimited_ai_analysis = EXCLUDED.unlimited_ai_analysis,
+price_monthly = EXCLUDED.price_monthly;
+```
+
+### 2. Backend Middleware (Node.js/TypeScript)
+
+Create `middleware/subscriptionCheck.ts`:
+```typescript
+import { Request, Response, NextFunction } from 'express';
+import { db } from '../config/database';
+
+interface SubscriptionLimits {
+  max_clients: number;
+  ai_cost_analysis: boolean;
+  time_clock_access: boolean;
+  stripe_payments: boolean;
+  custom_portal: boolean;
+  fully_branded_portal: boolean;
+  unlimited_ai_analysis: boolean;
+}
+
+export const checkSubscriptionAccess = (requiredFeature: keyof SubscriptionLimits) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.session?.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const userPlan = await db.query(`
+        SELECT u.subscription_plan, u.subscription_status, sl.*
+        FROM users u
+        JOIN subscription_limits sl ON u.subscription_plan = sl.plan_name
+        WHERE u.id = $1
+      `, [userId]);
+
+      if (!userPlan.rows[0]) {
+        return res.status(403).json({ error: 'No subscription plan found' });
+      }
+
+      const limits = userPlan.rows[0];
+      
+      if (limits.subscription_status !== 'active') {
+        return res.status(403).json({ error: 'Subscription inactive' });
+      }
+
+      if (!limits[requiredFeature]) {
+        return res.status(403).json({ 
+          error: `Feature not available in ${limits.subscription_plan} plan`,
+          upgradeRequired: true,
+          currentPlan: limits.subscription_plan
+        });
+      }
+
+      req.subscriptionLimits = limits;
+      next();
+    } catch (error) {
+      console.error('Subscription check error:', error);
+      res.status(500).json({ error: 'Subscription verification failed' });
+    }
+  };
+};
+
+export const checkClientLimit = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.session?.user?.id;
+    const userPlan = await db.query(`
+      SELECT sl.max_clients, sl.plan_name
+      FROM users u
+      JOIN subscription_limits sl ON u.subscription_plan = sl.plan_name
+      WHERE u.id = $1
+    `, [userId]);
+
+    const currentClientCount = await db.query(`
+      SELECT COUNT(*) as count FROM clients WHERE user_id = $1
+    `, [userId]);
+
+    const limits = userPlan.rows[0];
+    const clientCount = parseInt(currentClientCount.rows[0].count);
+
+    if (limits.max_clients !== -1 && clientCount >= limits.max_clients) {
+      return res.status(403).json({
+        error: `Client limit reached (${limits.max_clients} clients max for ${limits.plan_name} plan)`,
+        upgradeRequired: true,
+        currentCount: clientCount,
+        maxAllowed: limits.max_clients
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Client limit check error:', error);
+    res.status(500).json({ error: 'Client limit verification failed' });
+  }
+};
+```
+
+### 3. Route Protection
+
+Update your existing routes to include subscription checks:
+
+```typescript
+// Apply to client creation
+app.post('/api/clients', authenticateUser, checkClientLimit, createClient);
+
+// Apply to AI features
+app.get('/api/ai-analysis', authenticateUser, checkSubscriptionAccess('ai_cost_analysis'), getAIAnalysis);
+
+// Apply to time clock
+app.get('/api/timeclock', authenticateUser, checkSubscriptionAccess('time_clock_access'), getTimeClock);
+
+// Apply to Stripe features
+app.post('/api/stripe-setup', authenticateUser, checkSubscriptionAccess('stripe_payments'), setupStripe);
+```
+
+### 4. Admin Dashboard Enhancements
+
+Add subscription management to your existing admin panel:
+
+```typescript
+// Admin routes for subscription management
+app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
+  const users = await db.query(`
+    SELECT u.id, u.email, u.username, u.company_name, u.subscription_plan, 
+           u.subscription_status, u.subscription_start_date, u.subscription_end_date,
+           sl.price_monthly, COUNT(c.id) as client_count
+    FROM users u
+    LEFT JOIN subscription_limits sl ON u.subscription_plan = sl.plan_name
+    LEFT JOIN clients c ON u.id = c.user_id
+    GROUP BY u.id, sl.price_monthly
+    ORDER BY u.created_at DESC
+  `);
+  res.json(users.rows);
+});
+
+app.put('/api/admin/users/:id/subscription', authenticateAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { plan, status } = req.body;
+  
+  await db.query(`
+    UPDATE users SET 
+      subscription_plan = $1, 
+      subscription_status = $2,
+      subscription_start_date = CASE WHEN $2 = 'active' THEN NOW() ELSE subscription_start_date END
+    WHERE id = $3
+  `, [plan, status, id]);
+  
+  res.json({ success: true });
+});
+```
+
+### 5. Frontend React Components
+
+Create subscription upgrade prompts and feature gates:
+
+```tsx
+// components/SubscriptionGate.tsx
+import React from 'react';
+
+interface SubscriptionGateProps {
+  feature: string;
+  currentPlan: string;
+  children: React.ReactNode;
+  fallback?: React.ReactNode;
+}
+
+export const SubscriptionGate: React.FC<SubscriptionGateProps> = ({ 
+  feature, 
+  currentPlan, 
+  children, 
+  fallback 
+}) => {
+  const [hasAccess, setHasAccess] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/subscription/check/${feature}`)
+      .then(res => res.json())
+      .then(data => setHasAccess(data.hasAccess))
+      .catch(() => setHasAccess(false));
+  }, [feature]);
+
+  if (!hasAccess) {
+    return fallback || (
+      <div className="subscription-upgrade-prompt">
+        <h3>Upgrade Required</h3>
+        <p>This feature requires a higher subscription plan.</p>
+        <button onClick={() => window.location.href = '/upgrade'}>
+          Upgrade Now
+        </button>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+};
+```
+
+### 6. Stripe Integration Enhancements
+
+```typescript
+// Webhook handler for subscription updates
+app.post('/api/webhooks/stripe', express.raw({type: 'application/json'}), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    return res.status(400).send(`Webhook signature verification failed.`);
+  }
+
+  switch (event.type) {
+    case 'customer.subscription.updated':
+    case 'customer.subscription.created':
+      const subscription = event.data.object;
+      await updateUserSubscription(subscription);
+      break;
+    case 'customer.subscription.deleted':
+      await deactivateUserSubscription(event.data.object);
+      break;
+  }
+
+  res.json({received: true});
+});
+
+async function updateUserSubscription(subscription: any) {
+  const planMap = {
+    'price_basic_id': 'basic',
+    'price_pro_id': 'pro', 
+    'price_business_id': 'business'
+  };
+  
+  const plan = planMap[subscription.items.data[0].price.id] || 'basic';
+  
+  await db.query(`
+    UPDATE users SET 
+      subscription_plan = $1,
+      subscription_status = $2,
+      stripe_subscription_id = $3
+    WHERE stripe_customer_id = $4
+  `, [plan, subscription.status, subscription.id, subscription.customer]);
+}
+```
+
+### 7. Implementation Checklist
+
+- [ ] Add subscription middleware to all protected routes
+- [ ] Update admin dashboard with subscription management
+- [ ] Create subscription gate components for frontend
+- [ ] Test all plan limitations (client limits, feature access)
+- [ ] Configure Stripe webhook endpoints
+- [ ] Add upgrade/downgrade flows
+- [ ] Test subscription status changes
+- [ ] Add usage tracking for AI features
+- [ ] Implement grace period for expired subscriptions
+- [ ] Add subscription analytics to admin dashboard
+
+### 8. Testing Requirements
+
+Create comprehensive tests for:
+- Client limit enforcement across all plans
+- Feature access based on subscription level
+- Admin subscription management functions
+- Stripe webhook processing
+- Subscription upgrade/downgrade flows
+- Grace period handling for expired subscriptions
+
+## Expected Behavior After Implementation
+
+**Basic Plan Users ($29):**
+- Limited to 10 clients max
+- No AI cost analysis access
+- No time clock features
+- No Stripe payment processing
+- Basic client portal only
+
+**Pro Plan Users ($59):**
+- Limited to 50 clients max
+- Full AI cost analysis access
+- Time clock functionality enabled
+- Custom client portal
+- 10 AI-generated estimates per month
+
+**Business Plan Users ($99):**
+- Unlimited clients
+- All features unlocked
+- Unlimited AI cost analysis
+- Stripe integration enabled
+- Fully branded client portal
+
+The system should gracefully handle subscription changes, provide clear upgrade prompts, and maintain data integrity across all subscription transitions.
