@@ -27,6 +27,7 @@ out/
 .env.production.local
 *.pem
 google-key.json
+attached_assets/lead-capture-453501-a27ea283b13c.json
 
 # Debug
 npm-debug.log*
