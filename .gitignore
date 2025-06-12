@@ -26,6 +26,7 @@ out/
 .env.test.local
 .env.production.local
 *.pem
+google-key.json
 
 # Debug
 npm-debug.log*
