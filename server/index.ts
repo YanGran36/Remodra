@@ -39,7 +39,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
 // Add health check endpoint
-app.get('/health', healthCheck);
+app.get('/api/health', healthCheck);
 
 // Add stability and performance middleware
 app.use(sessionStabilityMiddleware);
