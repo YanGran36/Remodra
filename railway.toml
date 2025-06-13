@@ -3,8 +3,20 @@ builder = "nixpacks"
 buildCommand = "npm install && npm run build"
 
 [deploy]
-startCommand = "npm start"
+startCommand = "NODE_ENV=production npm start"
 healthcheckPath = "/"
 healthcheckTimeout = 100
 restartPolicyType = "on-failure"
-restartPolicyMaxRetries = 10 
+restartPolicyMaxRetries = 10
+
+[phases.setup]
+nixPkgs = ["nodejs", "postgresql"]
+
+[phases.install]
+cmds = ["npm install"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[phases.start]
+cmds = ["npm start"] 
