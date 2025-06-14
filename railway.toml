@@ -4,13 +4,13 @@ buildCommand = "npm install && npm run build"
 
 [deploy]
 startCommand = "NODE_ENV=production npm start"
-healthcheckPath = "/"
-healthcheckTimeout = 100
+healthcheckPath = "/api/health"
+healthcheckTimeout = 300
 restartPolicy = "on-failure"
 restartPolicyMaxRetries = 10
 
 [phases.setup]
-nixPkgs = ["nodejs", "postgresql"]
+nixPkgs = ["nodejs", "postgresql", "pkg-config"]
 
 [phases.install]
 cmds = ["npm install"]
@@ -19,4 +19,10 @@ cmds = ["npm install"]
 cmds = ["npm run build"]
 
 [phases.start]
-cmds = ["npm start"] 
+cmds = ["NODE_ENV=production npm start"]
+
+[health]
+path = "/api/health"
+timeout = 300
+interval = 30
+retries = 5 
